@@ -51,7 +51,7 @@ A working **research prototype**. It is the basis of our graduation research on 
 **Requirements:** Docker Desktop, Python 3.11+, Node 18+.
 
 ```bash
-git clone https://github.com/S2800-0/incident-commander.git
+git clone https://github.com/incident-commander-lab/incident-commander.git
 cd incident-commander
 pip install -e .
 ```
