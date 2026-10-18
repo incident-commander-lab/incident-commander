@@ -986,15 +986,15 @@ export default function App() {
               )}
               {panel === "docs" && (
                 <div className="docList">
-                  <a className="docItem" href="https://github.com/S2800-0/Incident-commander/blob/main/README.md" target="_blank" rel="noreferrer">
+                  <a className="docItem" href="https://github.com/incident-commander-lab/incident-commander/blob/main/README.md" target="_blank" rel="noreferrer">
                     <div className="docTitle">README.md</div>
                     <div className="docDesc">Quickstart, VoI framing, ablation methodology, evidence chain overview.</div>
                   </a>
-                  <a className="docItem" href="https://github.com/S2800-0/Incident-commander/blob/main/docs/AUTHORING_GUIDE.md" target="_blank" rel="noreferrer">
+                  <a className="docItem" href="https://github.com/incident-commander-lab/incident-commander/blob/main/docs/AUTHORING_GUIDE.md" target="_blank" rel="noreferrer">
                     <div className="docTitle">docs/AUTHORING_GUIDE.md</div>
                     <div className="docDesc">How to author a new incident bundle from a real postmortem — schema, invariant, three interpreter types, debug tree.</div>
                   </a>
-                  <a className="docItem" href="https://github.com/S2800-0/Incident-commander/blob/main/schema/incident_bundle.schema.md" target="_blank" rel="noreferrer">
+                  <a className="docItem" href="https://github.com/incident-commander-lab/incident-commander/blob/main/schema/incident_bundle.schema.md" target="_blank" rel="noreferrer">
                     <div className="docTitle">schema/incident_bundle.schema.md</div>
                     <div className="docDesc">Bundle schema, evidence tiers, the one invariant that makes the ablation meaningful.</div>
                   </a>
@@ -1035,7 +1035,7 @@ export default function App() {
                     </div>
                   </div>
                   <button className="userAction" onClick={() => { setPanel("about"); }}>About Incident Commander</button>
-                  <a className="userAction" href="https://github.com/S2800-0/Incident-commander" target="_blank" rel="noreferrer">GitHub repository</a>
+                  <a className="userAction" href="https://github.com/incident-commander-lab/incident-commander" target="_blank" rel="noreferrer">GitHub repository</a>
                   <button className="userAction danger">Sign out</button>
                 </div>
               )}
