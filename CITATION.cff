@@ -13,7 +13,7 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.23276216
     description: "Archived snapshot of v1.0.0"
-repository-code: "https://github.com/S2800-0/incident-commander"
+repository-code: "https://github.com/incident-commander-lab/incident-commander"
 license: MIT
 version: 1.0.0
 doi: 10.5281/zenodo.23276215
