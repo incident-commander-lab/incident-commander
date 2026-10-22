@@ -44,7 +44,7 @@ Incident Commander shows all three end-to-end.
 
 ### Status and intended use
 
-A working **research prototype**. It is the basis of our graduation research on decision-theoretic incident response. The intended users are SRE and platform teams, starting in staging and read-only "shadow" mode in production: the agent earns more autonomy one reversible action at a time. It is not yet hardened for production; see [Security](#security).
+A working **research prototype**. It is the basis of our ongoing research on decision-theoretic incident response. The intended users are SRE and platform teams, starting in staging and read-only "shadow" mode in production: the agent earns more autonomy one reversible action at a time. It is not yet hardened for production; see [Security](#security).
 
 ## Quickstart
 
