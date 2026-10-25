@@ -23,7 +23,12 @@ def main(argv: list[str]) -> int:
     with open(argv[1], "r", encoding="utf-8") as f:
         doc = json.load(f)
 
-    ok, msgs = verify_postmortem(doc)
+    try:
+        ok, msgs = verify_postmortem(doc)
+    except (KeyError, TypeError, ValueError) as e:   # not a sealed postmortem: never "verified"
+        print(f"MALFORMED: not a sealed postmortem ({type(e).__name__}: {e})")
+        print("TAMPERED ❌")
+        return 1
 
     v = doc.get("verdict", {})
     print(f"incident:    {v.get('incident_id')}")

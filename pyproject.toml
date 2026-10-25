@@ -1,7 +1,7 @@
 [project]
 name = "incident-commander"
 version = "0.1.0"
-description = "Multi-agent active differential diagnosis for SRE incidents — probe-driven, calibrated, cryptographically sealed."
+description = "Local, mock-service research prototype for policy-gated, reversible incident remediation with a signed evidence chain."
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
@@ -24,3 +24,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["ic", "ic.agents", "ic.live", "server"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

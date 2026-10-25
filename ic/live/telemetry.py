@@ -11,16 +11,18 @@ histogram_quantile — so they carry bucket-resolution error, not exact values.
 """
 from __future__ import annotations
 
+import math
 import threading
 import time
 from bisect import bisect_left, bisect_right
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from typing import Callable, Optional
 
 from ..otlp import OtlpMetricsPayload
 
 RETENTION_S = 900.0
+MAX_FUTURE_S = 300.0   # a point stamped further ahead than this is clock skew or poisoning, not telemetry
 
 
 @dataclass(frozen=True)
@@ -72,31 +74,55 @@ class TelemetryStore:
         self.last_ingest_at: Optional[float] = None
         self.max_point_t = 0.0          # newest interval end ingested so far
         self.ingest_lag_s: deque[float] = deque(maxlen=120)  # wall arrival − interval end
+        self.rejected: Counter = Counter()  # reason -> data points dropped at ingest
 
     # --- write ----------------------------------------------------------------
 
+    def _time(self, nano, now: float) -> float:
+        t = int(nano) / 1e9          # ValueError on a non-numeric timestamp
+        if t <= 0 or t > now + MAX_FUTURE_S:
+            raise ValueError("timestamp_out_of_range")
+        return t
+
     def ingest(self, payload: OtlpMetricsPayload) -> int:
+        """Store every well-formed data point; drop the rest and count why (self.rejected).
+        A point that would poison the detector's or verification's queries — no service, a
+        timestamp that cannot be parsed or lies in the future, a non-finite or negative value,
+        a histogram whose buckets do not add up — never reaches them."""
         new: list[Point] = []
+        now = time.time()
         for rm in payload.resourceMetrics:
-            service = rm.resource.get("service.name")
+            service = rm.resource.get("service.name", "")   # absent: not attributable, so not stored
             for sm in rm.scopeMetrics:
                 for m in sm.metrics:
-                    if m.sum is not None:
-                        for dp in m.sum.dataPoints:
-                            new.append(Point(
-                                t=int(dp.timeUnixNano) / 1e9, service=service, metric=m.name,
-                                attrs=tuple(sorted((kv.key, kv.value.unwrap()) for kv in dp.attributes)),
-                                value=dp.value()))
-                    elif m.histogram is not None:
-                        for dp in m.histogram.dataPoints:
-                            new.append(Point(
-                                t=int(dp.timeUnixNano) / 1e9, service=service, metric=m.name,
-                                attrs=tuple(sorted((kv.key, kv.value.unwrap()) for kv in dp.attributes)),
-                                counts=tuple(int(c) for c in dp.bucketCounts),
-                                bounds=tuple(dp.explicitBounds), total=float(dp.sum or 0.0)))
+                    dps = m.sum.dataPoints if m.sum is not None else (m.histogram.dataPoints if m.histogram is not None else [])
+                    for dp in dps:
+                        try:
+                            if not service:
+                                raise ValueError("missing_service_name")
+                            t = self._time(dp.timeUnixNano, now)
+                            attrs = tuple(sorted((kv.key, kv.value.unwrap()) for kv in dp.attributes))
+                            if m.sum is not None:
+                                v = dp.value()
+                                if not math.isfinite(v) or v < 0:
+                                    raise ValueError("bad_value")
+                                new.append(Point(t=t, service=service, metric=m.name, attrs=attrs, value=v))
+                            else:
+                                counts = tuple(int(c) for c in dp.bucketCounts)
+                                bounds = tuple(float(b) for b in dp.explicitBounds)
+                                total = float(dp.sum or 0.0)
+                                if (any(c < 0 for c in counts) or len(counts) != len(bounds) + 1
+                                        or any(not math.isfinite(b) for b in bounds) or list(bounds) != sorted(set(bounds))
+                                        or not math.isfinite(total) or total < 0):
+                                    raise ValueError("bad_histogram")
+                                new.append(Point(t=t, service=service, metric=m.name, attrs=attrs,
+                                                 counts=counts, bounds=bounds, total=total))
+                        except (ValueError, TypeError) as e:
+                            reason = str(e) if str(e) in ("missing_service_name", "timestamp_out_of_range",
+                                                          "bad_value", "bad_histogram") else "unparseable"
+                            self.rejected[reason] += 1
         if not new:
             return 0
-        now = time.time()
         cutoff = now - self.retention_s
         with self._covered:
             for p in new:

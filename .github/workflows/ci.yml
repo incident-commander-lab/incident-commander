@@ -1,0 +1,62 @@
+# Every push and pull request: unit and boundary tests, the console build, the Rego policy tests,
+# and the headless end-to-end smoke test (scripts/smoke_demo.py) against a real OPA.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  console:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm ci
+        working-directory: console
+      - run: npm run build
+        working-directory: console
+
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.4.0          # the version docker-compose.yml runs
+      - run: opa test policy/ -v
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: [python, policy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: End-to-end demo (OPA in Docker, target service, backend, two scenarios)
+        run: python scripts/smoke_demo.py

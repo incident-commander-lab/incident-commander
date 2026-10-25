@@ -139,10 +139,10 @@ def _remember(items: list) -> None:
 
 @app.post("/ingest/otlp/v1/metrics")
 def ingest_otlp_metrics(payload: OtlpMetricsPayload) -> dict:
-    live_store.ingest(payload)  # live mode reads telemetry from here
+    stored = live_store.ingest(payload)  # live mode reads telemetry from here; malformed points are dropped
     items = metrics_to_evidence(payload)
     _remember(items)
-    return {"accepted": len(items),
+    return {"accepted": len(items), "stored_points": stored, "rejected_points": dict(live_store.rejected),
             "kinds": sorted({it.payload.get("metric.kind", "") for it in items}),
             "sources": sorted({it.source_uri for it in items})[:16]}
 

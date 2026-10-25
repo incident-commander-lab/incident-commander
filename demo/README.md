@@ -25,8 +25,8 @@ ship?", this doc walks them through it in order.
 ## Prerequisites — bring the stack up
 
 ```bash
-# 1. OPA policy engine (Docker sidecar)
-cd "/Users/shahy/Desktop/Incident commander"
+# 1. OPA policy engine (Docker sidecar) — from the repository root
+cd incident-commander
 docker compose up -d opa
 docker ps --filter name=ic-opa    # → Up (healthy)
 
@@ -484,8 +484,5 @@ and re-fire after full recovery.
   * **For hostile-judge rehearsal** — `demo/QA_PREP.md` (local; not in the
     repo per prior instruction).
 
-Both LOCAL-only files live at:
-```
-/Users/shahy/Desktop/Incident commander/demo/DEMO_SCRIPT.md
-/Users/shahy/Desktop/Incident commander/demo/QA_PREP.md
-```
+Both LOCAL-only files live next to this README (`demo/DEMO_SCRIPT.md`,
+`demo/QA_PREP.md`) on the authors' machines and are not in the repository.
