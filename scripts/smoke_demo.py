@@ -11,7 +11,8 @@ traffic, then runs two of the console's scenarios and checks the outcome the REA
   2. database_saturation  -> failover proposed, OPA denies it, nothing executed
 
 Exit 0 when both hold. The same script runs in CI (.github/workflows/ci.yml). It leaves no
-processes behind; OPA is left running only if it was already running before.
+processes behind; OPA (its own container, from this clone's policy/) is removed afterwards unless it was
+already running before.
 """
 from __future__ import annotations
 
@@ -49,18 +50,26 @@ def wait_for(url: str, what: str, timeout: float = 60.0) -> None:
     raise SystemExit(f"FAIL: {what} did not come up at {url} within {timeout:.0f}s")
 
 
+OPA_IMAGE = "openpolicyagent/opa:1.4.0-static"   # the version docker-compose.yml runs
+OPA_NAME = "ic-opa-smoke"
+
+
 def ensure_opa() -> bool:
-    """True if this script started OPA (and should stop it)."""
+    """True if this script started OPA (and should remove it). Its own container, loading this
+    clone's ./policy, so it neither depends on nor collides with the compose stack's `ic-opa`."""
     try:
         http("GET", f"{OPA}/health")
-        print("OPA already running on :8181")
+        print("OPA already running on :8181 (using it)")
         return False
     except (urllib.error.URLError, OSError):
         pass
     if not shutil.which("docker"):
         raise SystemExit("FAIL: OPA is not running on :8181 and Docker is not installed (see README Quickstart)")
-    print("starting OPA (docker compose up -d opa)")
-    subprocess.run(["docker", "compose", "up", "-d", "opa"], cwd=ROOT, check=True)
+    print(f"starting OPA ({OPA_IMAGE}, policies from ./policy)")
+    subprocess.run(["docker", "rm", "-f", OPA_NAME], capture_output=True)
+    subprocess.run(["docker", "run", "-d", "--rm", "--name", OPA_NAME, "-p", "8181:8181",
+                    "-v", f"{ROOT / 'policy'}:/policy:ro", OPA_IMAGE,
+                    "run", "--server", "--addr=0.0.0.0:8181", "/policy"], check=True, capture_output=True)
     wait_for(f"{OPA}/health", "OPA", timeout=90)
     return True
 
@@ -143,7 +152,7 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 p.kill()
         if started_opa:
-            subprocess.run(["docker", "compose", "stop", "opa"], cwd=ROOT, check=False, capture_output=True)
+            subprocess.run(["docker", "rm", "-f", OPA_NAME], check=False, capture_output=True)
         shutil.rmtree(results, ignore_errors=True)
 
     if failures:
