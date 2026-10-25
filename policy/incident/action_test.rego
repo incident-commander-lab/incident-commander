@@ -1,4 +1,5 @@
-# Policy unit tests — run with:  tools/opa.exe test policy/ -v
+# Policy unit tests — run with:  opa test policy/ -v   (or, without opa installed:
+#   docker run --rm -v "$PWD/policy:/policy:ro" openpolicyagent/opa:1.4.0-static test /policy -v)
 #
 # These pin the autonomy boundary. If a change to action.rego lets a forbidden
 # action through, or blocks the reversible path, a test here fails before the

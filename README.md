@@ -2,9 +2,10 @@
 
 # Incident Commander
 
-**An autonomous SRE agent that decides when *not* to act.**
+**A local, mock-service research prototype for policy-gated, reversible incident remediation.**
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23276215.svg)](https://doi.org/10.5281/zenodo.23276215)
+[![ci](https://github.com/incident-commander-lab/incident-commander/actions/workflows/ci.yml/badge.svg)](https://github.com/incident-commander-lab/incident-commander/actions/workflows/ci.yml)
 
 Bayesian belief updating for probe selection · OPA policy engine outside the agent · Merkle-signed evidence chain · offline-verifiable postmortems.
 
@@ -20,7 +21,7 @@ Bayesian belief updating for probe selection · OPA policy engine outside the ag
 
 ## What it does
 
-Incident Commander is a decision layer above your observability stack. It watches telemetry from a target service, opens an incident autonomously when SLOs are breached, and runs a formal loop to decide what to do next:
+Incident Commander is a decision layer that sits above telemetry. In this repository it watches an included mock target service (`mock/shop_svc.py`), opens an incident when an SLO is breached, and runs a fixed loop to decide what to do next:
 
 1. **Investigate** — competing root-cause hypotheses, scored by expected information gain per unit cost
 2. **Ask** — a policy engine outside the agent decides whether the proposed action is allowed
@@ -40,7 +41,7 @@ Enterprise DevOps teams cannot deploy autonomous incident response until three t
 - Every action is gated by a policy the agent cannot bypass
 - Every decision produces a receipt a third party can verify without trusting the operator
 
-Incident Commander shows all three end-to-end.
+Incident Commander demonstrates all three end to end on its included mock service and scenario corpus. It has not been run against production systems.
 
 ### Status and intended use
 
@@ -48,15 +49,27 @@ A working **research prototype**. It is the basis of our ongoing research on dec
 
 ## Quickstart
 
-**Requirements:** Docker Desktop, Python 3.11+, Node 18+.
+**Platform assumptions:**
+- **macOS** for the one-click `start.command` / `stop.command` (they open Terminal tabs with AppleScript). Everything else, including the smoke test below, also runs on Linux; CI runs it on Ubuntu.
+- **Docker Desktop** (or Docker Engine with Compose v2), for the OPA policy engine.
+- **Python 3.11+** and **Node 18+** (CI uses Python 3.11 and 3.12, Node 20).
+
+**From a clean clone to a working demo** (this exact sequence runs in CI on every push):
 
 ```bash
 git clone https://github.com/incident-commander-lab/incident-commander.git
 cd incident-commander
-pip install -e .
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+(cd console && npm ci)
+pytest -q                         # unit and safety-boundary tests
+python scripts/smoke_demo.py      # starts OPA (Docker), the target service and the backend headless,
+                                  # runs two scenarios, checks the outcomes, stops everything
 ```
 
-Then double-click `start.command` from Finder (macOS), or run:
+The smoke test passes when a bad release is rolled back and the recovery is verified, its sealed postmortem verifies offline (and a tampered copy does not), and a proposed database failover is denied by OPA with nothing executed.
+
+**Then the interactive demo:** double-click `start.command` from Finder (macOS), or run:
 
 ```bash
 ./start.command
@@ -84,7 +97,7 @@ Once the console is open, four chaos scenarios exercise the four outcome pattern
 | **Two dependencies degrade together** | Abstain → escalate | Refusing when evidence cannot separate causes is a designed output |
 | **orders-db saturation** | Failover proposed → **OPA DENY** → escalate | Irreversible actions are denied before they can execute |
 
-Each scenario completes in 15-30 seconds. Between runs, click **⟲ Reset environment**.
+Each scenario completes in 15-30 seconds. Between runs, click **⟲ Reset environment**. These four scenarios, the 12 recorded bundles in `corpus/` and the 63-trial harness are the full scenario corpus; every result below is measured on it.
 
 ## How the mechanism works
 
@@ -118,11 +131,11 @@ Three action classes exist: rollback, canary, and intervention. Each is gated by
 Every decision — SLO breach, probe result, policy verdict, action outcome, verification result — is a leaf in a Merkle tree. The root is signed with Ed25519 over `(verdict || root || timestamp)`. A standalone verifier reads only the sealed postmortem file:
 
 ```bash
-python verify.py results/LIVE-0073.postmortem.json
+python verify.py live_runs/LIVE-0001.postmortem.json    # written by the backend for each live incident
 # → VERIFIED · exit 0
 ```
 
-Tamper with any leaf, the same script prints `TAMPERED · exit 1`.
+Edit any leaf, the verdict, the root or the signature, or delete a cited leaf, and the same script prints `TAMPERED · exit 1` (tests in `tests/test_safety_boundaries.py`).
 
 ## Architecture
 
@@ -163,7 +176,7 @@ SLO detector  ──▶  Investigation loop  ──▶  Policy engine (OPA, outs
 
 </details>
 
-Ten engine modules · 15 unit tests · 14 policy tests · 63 end-to-end trials across five outcome patterns.
+61 Python tests (unit, controller safety boundaries, evidence-chain tampering, telemetry validation) · 14 Rego policy tests · a headless end-to-end smoke test · a 63-trial harness across five outcome patterns. All but the harness run in CI.
 
 ### Repository layout
 
@@ -179,7 +192,8 @@ deck/               presentation deck (static HTML, self-contained)
 policy/             Rego policies
 
 corpus/             12 recorded incident bundles (replay mode)
-tests/              pytest suites for orchestrator + policy + live loop
+tests/              pytest suites: live engine, SLO detector, trials, safety boundaries
+scripts/            smoke_demo.py — headless clean-clone → demo check (also run in CI)
 
 start.command       one-click startup (macOS Finder-double-click)
 stop.command        one-click shutdown
@@ -187,7 +201,7 @@ stop.command        one-click shutdown
 
 ## Evidence
 
-Two levels of proof exist beyond a single demo run:
+All results below are measured on the included scenario corpus (the mock target service, its four live scenarios and 12 recorded incident bundles). They show the mechanism works as designed on those scenarios; they are not evidence of performance on real production incidents.
 
 **Ablation** — turn the mechanism off and measure the collapse:
 ```
@@ -199,7 +213,7 @@ Brier score               0.004  0.287
 
 `OFF` scores 0% (not 50%) because the discriminating signal is reachable only through a check. Turn checks off and it is genuinely gone — the ablation measures the policy, not the model.
 
-**63-trial harness** — five outcome patterns, all end-to-end through the same code:
+**63-trial harness** — five outcome patterns on the four live scenarios, all end to end through the same code:
 
 ```bash
 python -m ic.live_trials
@@ -253,7 +267,7 @@ The demo target service, `mock/shop_svc.py` (port 9001), exposes the operations 
 **Known limits of this prototype (do not expose it to a network):**
 - The REST and WebSocket APIs have **no authentication**, and CORS allows any origin. They are meant for `localhost` only.
 - The target is a mock service; a real deployment needs least-privilege credentials for the systems it acts on (for Kubernetes, a scoped RBAC service account).
-- Telemetry is trusted as received. Sanitizing logs against injected text (prompt injection through telemetry) is on the roadmap.
+- Telemetry is validated at ingest (metric points with no service, an unparseable or future timestamp, a non-finite or negative value, or an inconsistent histogram are dropped and counted), but otherwise trusted as received. Sanitizing logs against injected text (prompt injection through telemetry) is on the roadmap.
 
 To report a security issue, please open a private advisory on this repository rather than a public issue.
 
@@ -278,11 +292,12 @@ docker compose up opa        # OPA on :8181, loading ./policy read-only, decisio
 | `IC_SHOP_SVC_URL` | `http://localhost:9001` | Target service base URL |
 | `IC_USE_LLM` | off | Opt-in LLM triage assist |
 
-**Tests:**
+**Tests** (the first three run in CI, `.github/workflows/ci.yml`, together with `cd console && npm ci && npm run build`):
 
 ```bash
-pytest                       # unit + integration
-opa test policy/ -v          # Rego policy tests
+pytest -q                    # unit + safety-boundary tests
+opa test policy/ -v          # Rego policy tests (or: docker run --rm -v "$PWD/policy:/policy:ro" openpolicyagent/opa:1.4.0-static test /policy -v)
+python scripts/smoke_demo.py # headless end-to-end demo check
 python -m ic.live_trials     # 63-trial end-to-end harness
 ```
 
@@ -311,7 +326,7 @@ No LLM in the decision path. LLM support exists as an opt-in triage assist behin
 - Probe catalog expansion — VoI 1.2 vs exhaustive 2.8 probes per incident
 
 **Planned:**
-- Formal Expected Information Gain under Shannon entropy (currently a divergence heuristic)
+- Formal Expected Information Gain in replay mode (live mode already uses Shannon EIG; replay still uses a divergence heuristic)
 - Kubernetes adapter — replace `mock/shop_svc.py` with a real `kubectl` integration
 - Wider policy corpus — compliance, data residency, multi-tenant scoping
 - Multi-region deployment with per-region SLO detectors
@@ -327,7 +342,11 @@ No LLM in the decision path. LLM support exists as an opt-in triage assist behin
 
 ## Contributing
 
-Issues and pull requests welcome. The project follows conventional commits and standard pytest discipline. Run `pytest` before opening a PR.
+Issues and pull requests welcome. The project follows conventional commits. CI must pass: `pytest -q`, the console build, `opa test policy/` and `python scripts/smoke_demo.py`.
+
+## Contributions
+
+Who built what is in [`AUTHORS.md`](AUTHORS.md), taken from the commit history.
 
 ## Citation
 

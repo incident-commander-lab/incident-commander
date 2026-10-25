@@ -7,7 +7,7 @@
 
 set -e
 
-REPO="/Users/shahy/Desktop/Incident commander"
+REPO="$(cd "$(dirname "$0")" && pwd)"   # the folder this script is in, wherever the repo was cloned
 cd "$REPO"
 
 echo ""

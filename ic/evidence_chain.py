@@ -172,6 +172,14 @@ def verify_postmortem(doc: dict) -> tuple[bool, list[str]]:
             ok = False
             msgs.append(f"BROKEN proof: {e['source_uri']} does not chain to the root")
 
+    # 1b. completeness: the signed verdict lists every evidence ref it cites, so a leaf removed
+    #     from the file (each remaining proof still checks out) is caught here.
+    embedded = {e["source_uri"] for e in doc["evidence"]}
+    missing = sorted(set(doc.get("verdict", {}).get("evidence_refs") or []) - embedded)
+    if missing:
+        ok = False
+        msgs.append(f"MISSING evidence: {len(missing)} cited leaf(s) removed, e.g. {missing[0]}")
+
     # 2. verify the signature over verdict-core || root || timestamp.
     basis = signing_basis(doc["verdict"], root, signing["timestamp"])
     try:
